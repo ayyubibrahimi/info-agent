@@ -166,7 +166,7 @@ class RequestAnalyzer:
                     "content": [
                         {
                             "type": "text",
-                            "text": f"Extract all clickable requests from this table. Page text context:\n\n{page_text[:1000]}"
+                            "text": f"Extract all clickable requests from this table. Page text context:\n\n{page_text}"
                         },
                         {
                             "type": "image_url",
