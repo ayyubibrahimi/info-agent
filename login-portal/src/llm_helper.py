@@ -109,39 +109,107 @@ class LLMHelper:
         """Analyze individual request detail page using multimodal LLM"""
         
         analysis_prompt = f"""
-        You are analyzing a screenshot of a detailed view for public records request {request_number}.
-        
-        This page contains comprehensive information about a single request. Your job is to:
-        
-        1. **Extract current status**: What's the current state of this request?
-        2. **Identify required actions**: Does the user need to do anything?
-        3. **Summarize timeline**: What are the key events that have happened?
-        4. **Analyze correspondence**: What messages have been exchanged?
-        5. **Check for documents**: Are there any files ready for download?
-        6. **Look for payments**: Are there any fees or invoices due?
-        7. **Find staff contact**: Who is handling this request?
-        8. **Assess completion**: When might this be finished?
-        9. **Provide insights**: What should the user know?
-        10. **Recommend next steps**: What should the user do?
-        
-        Look carefully at:
-        - Status indicators and progress
-        - Timeline section with chronological events
-        - Any messages from staff requesting clarification
-        - Documents tab or download links
-        - Invoice/payment sections
-        - Staff assignment information
-        - Any urgent notifications or alerts
-        
-        Pay special attention to:
-        - Messages asking for "more details" or "clarification"
-        - Requests that are "on hold" waiting for user response
-        - Completed requests with documents ready
-        - Payment requests or fee notifications
-        
-        Provide actionable insights in plain language that help the user understand exactly what's happening with their request.
+        <role>
+        You are an expert analyst for public records request management systems. Your job is to analyze detailed request views and provide clear, actionable summaries for users.
+        </role>
+
+        <task>
+        Analyze the screenshot of public records request {request_number} and provide a comprehensive summary following the specified format and guidelines.
+        </task>
+
+        <thinking_process>
+        Before writing your response, think through:
+        1. What is the current status and what does it mean for the user?
+        2. Who are the key players in this request (user vs staff vs other parties)?
+        3. What is the chronological flow of events and communications?
+        4. What actions, if any, does the user need to take?
+        5. What are the most important insights the user should understand?
+        6. What should happen next and when?
+        </thinking_process>
+
+        <analysis_framework>
+        Extract and analyze the following elements:
+
+        1. **Current Status**: Active/Open/Closed/On Hold/Completed
+        2. **Action Required**: YES/NO - Does user need to respond or take action?
+        3. **Staff Contact**: Who is handling the request and their department
+        4. **Timeline Analysis**: Chronological events with proper attribution
+        5. **Correspondence Summary**: Key messages exchanged
+        6. **Document Status**: Available files, invoices, payments due
+        7. **Completion Assessment**: Expected timeline and next milestones
+        8. **Key Insights**: Important patterns or issues to note
+        9. **Next Steps**: Specific recommendations for the user
+        </analysis_framework>
+
+        <formatting_requirements>
+        - Use "You:" for messages from the requester
+        - Use "Staff:" for messages from government personnel
+        - Use proper names when available (e.g., "Law Admin 09:", "John Smith:")
+        - Include dates in format: [Month Day, Year]
+        - Use clear visual hierarchy with emojis and formatting
+        - Provide actionable, specific recommendations
+        </formatting_requirements>
+
+        <examples>
+        <example_1>
+        **Input**: Request shows requester sent follow-up on March 15, staff responded March 20 saying they need more details, requester hasn't responded yet.
+
+        **Output Timeline**:
+        • March 15, 2024: You sent a follow-up inquiry about the status
+        • March 20, 2024: Staff (Records Clerk) responded requesting additional details about the date range needed
+        • **Action Required**: YES - You need to respond with the requested clarification
+
+        **Next Steps**: Reply to staff with the specific date range or additional details they requested.
+        </example_1>
+
+        <example_2>
+        **Input**: Request shows completed with documents ready, invoice paid, download link available.
+
+        **Output Timeline**:
+        • January 5, 2024: You submitted the original request
+        • February 12, 2024: Staff (Legal Department) notified you that documents were ready and sent invoice
+        • February 15, 2024: You paid the invoice ($25.00)
+        • February 16, 2024: Staff provided download link for requested documents
+        • **Action Required**: NO - Documents are ready for download
+
+        **Next Steps**: Download your documents using the provided link. Request is complete.
+        </example_2>
+        </examples>
+
+        <output_format>
+        ANALYSIS SUMMARY FOR REQUEST {request_number}
+        ======================================================================
+        Status: [Current Status]
+        Action Required: [YES/NO]
+        Contact: [Staff Name, Department]
+        Completion: [Expected timeline or completion status]
+
+        CORRESPONDENCE SUMMARY:
+        [Brief overview of key communications and current state]
+
+        TIMELINE:
+        [Chronological list with proper attribution using "You:" and "Staff:" or proper names]
+
+        KEY INSIGHTS:
+        [Important patterns, delays, issues, or notable aspects]
+
+        NEXT STEPS: 
+        [Specific, actionable recommendations for the user]
+        </output_format>
+
+        <quality_checklist>
+        - [ ] Timeline uses proper attribution (You: vs Staff: vs proper names)
+        - [ ] All dates are included and chronologically ordered
+        - [ ] Action required is clearly stated (YES/NO)
+        - [ ] Next steps are specific and actionable
+        - [ ] Key insights highlight important patterns or issues
+        - [ ] Contact information is clearly identified
+        - [ ] Status assessment is accurate based on available information
+        </quality_checklist>
+
+        Analyze the provided screenshot following these guidelines and provide a comprehensive summary.
         """
-        
+
         try:
             structured_llm = self.llm_client.with_structured_output(RequestDetailAnalysis)
             
