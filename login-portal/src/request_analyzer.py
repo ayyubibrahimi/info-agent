@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from message_helpers import MessageHelpers
 from request_filter_manager import RequestFilterManager
 import re
+from template_utils import generate_templates
 
 logger = logging.getLogger(__name__)
 
@@ -992,7 +993,7 @@ class RequestAnalyzer:
                     
                     if action_choice == "1":
                         # Handle message sending
-                        message_result = self._handle_message_sending(request.request_number)
+                        message_result = self._handle_message_sending(request.request_number, analysis)
                         if message_result["success"]:
                             print("✅ Message sent successfully!")
                         else:
@@ -1036,7 +1037,7 @@ class RequestAnalyzer:
             logger.error(f"Single request analysis failed: {str(e)}")
             return {"success": False, "error": str(e)}
     
-    def _handle_message_sending(self, request_number: str) -> Dict[str, Any]:
+    def _handle_message_sending(self, request_number: str, analysis=None) -> Dict[str, Any]:
         """Handle the complete message sending workflow with improved terminal input"""
         try:
             print(f"\n📧 Sending message for request {request_number}...")
@@ -1061,8 +1062,12 @@ class RequestAnalyzer:
             print(f"   Subject field: {'Available' if composer_analysis.subject_field_available else 'Not available'}")
             print(f"   Message field: {'Available' if composer_analysis.message_field_available else 'Not available'}")
             
-            # Step 4: Get message content from user with improved interface
-            message_data = self._get_message_input_from_terminal_with_templates(composer_analysis.subject_field_available)
+            # Step 4: Get message content from user with improved interface (now with AI context)
+            message_data = self._get_message_input_from_terminal_with_templates(
+                composer_analysis.subject_field_available, 
+                analysis, 
+                request_number
+            )
             
             if not message_data["success"]:
                 return {"success": False, "error": message_data["error"]}
@@ -1079,6 +1084,7 @@ class RequestAnalyzer:
         except Exception as e:
             logger.error(f"Message sending workflow failed: {str(e)}")
             return {"success": False, "error": str(e)}
+
 
     def _get_message_input_from_terminal(self, has_subject_field: bool) -> Dict[str, Any]:
         """Get message content from user via terminal with improved UX"""
@@ -1277,8 +1283,20 @@ class RequestAnalyzer:
             logger.error(f"Message editing failed: {str(e)}")
             return {"success": False, "error": str(e)}
 
-    def _get_quick_message_templates(self) -> Dict[str, str]:
-        """Provide quick message templates for common requests"""
+    def _get_quick_message_templates(self, analysis=None, request_number=None) -> Dict[str, str]:
+        """Provide quick message templates for common requests - now AI-powered when context available"""
+        
+        # If we have analysis context, generate AI templates
+        if analysis is not None and request_number is not None and self.llm_helper:
+            try:
+                print(f"🤖 Generating contextual templates...")
+                ai_templates = generate_templates(self.llm_helper.llm_client, analysis, request_number)
+                return ai_templates
+            except Exception as e:
+                logger.warning(f"AI template generation failed, using fallback: {e}")
+                # Fall through to original templates
+        
+        # Fallback to original hard-coded templates
         return {
             "1": {
                 "subject": "Request Status Update",
@@ -1298,13 +1316,19 @@ class RequestAnalyzer:
             }
         }
 
-    def _offer_message_templates(self) -> Dict[str, Any]:
+    def _offer_message_templates(self, analysis=None, request_number=None) -> Dict[str, Any]:
         """Offer pre-written message templates to the user"""
         try:
-            templates = self._get_quick_message_templates()
+            templates = self._get_quick_message_templates(analysis, request_number)
             
-            print(f"\n💬 QUICK MESSAGE TEMPLATES:")
-            print(f"   Would you like to use a pre-written template?")
+            # Show different header if AI-generated
+            if analysis is not None and request_number is not None:
+                print(f"\n💬 CONTEXTUAL MESSAGE TEMPLATES:")
+                print(f"   AI-generated templates based on your request analysis:")
+            else:
+                print(f"\n💬 QUICK MESSAGE TEMPLATES:")
+                print(f"   Would you like to use a pre-written template?")
+            
             print(f"")
             for key, template in templates.items():
                 print(f"   {key}. {template['subject']}")
@@ -1316,7 +1340,14 @@ class RequestAnalyzer:
                 
                 if choice in templates:
                     selected = templates[choice]
-                    print(f"\n📋 TEMPLATE PREVIEW:")
+                    
+                    # Show different preview header if AI-generated
+                    if analysis is not None:
+                        print(f"\n📋 AI-GENERATED TEMPLATE PREVIEW:")
+                        print(f"   🎯 Context-aware content based on your request analysis")
+                    else:
+                        print(f"\n📋 TEMPLATE PREVIEW:")
+                    
                     self._preview_message(selected['subject'], selected['message'])
                     
                     while True:
@@ -1349,11 +1380,11 @@ class RequestAnalyzer:
             return {"success": False, "error": str(e)}
 
     # Update the main message input function to include templates
-    def _get_message_input_from_terminal_with_templates(self, has_subject_field: bool) -> Dict[str, Any]:
+    def _get_message_input_from_terminal_with_templates(self, has_subject_field: bool, analysis=None, request_number=None) -> Dict[str, Any]:
         """Enhanced message input with template options"""
         try:
-            # First offer templates
-            template_result = self._offer_message_templates()
+            # First offer templates (now with AI context if available)
+            template_result = self._offer_message_templates(analysis, request_number)
             
             if template_result["success"]:
                 # User selected a template
