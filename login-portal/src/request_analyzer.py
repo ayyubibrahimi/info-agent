@@ -9,6 +9,8 @@ from selenium.common.exceptions import TimeoutException
 from pydantic import BaseModel, Field
 from message_helpers import MessageHelpers
 from request_filter_manager import RequestFilterManager
+import re
+from template_utils import generate_templates
 
 logger = logging.getLogger(__name__)
 
@@ -114,85 +116,145 @@ class RequestAnalyzer:
                 'error': str(e)
             }
     
+
     def extract_requests_with_llm(self) -> RequestTableExtraction:
-        """Use LLM to identify all clickable requests in the table"""
+        """Extract all clickable requests directly from DOM with improved coverage"""
         try:
-            logger.info("🔍 Using LLM to extract requests from table")
+            logger.info("🔍 Extracting requests directly from DOM")
             
-            # Take screenshot and get page text
-            screenshot_b64 = self.llm_helper.get_screenshot_from_driver(self.driver)
-            page_text = self.llm_helper.extract_page_text(self.driver)
+            # Step 1: Scroll to bottom to trigger any lazy loading
+            logger.info("📜 Scrolling to load all requests...")
+            self._scroll_to_load_all_requests()
             
-            if not screenshot_b64:
-                logger.error("Could not capture screenshot")
-                return RequestTableExtraction(
-                    total_requests_visible=0,
-                    clickable_requests=[],
-                    extraction_successful=False,
-                    table_analysis="Screenshot capture failed"
-                )
+            # Step 2: Try multiple selector patterns to catch all request links
+            all_request_links = []
             
-            # Create extraction prompt
-            extraction_prompt = """
-            You are looking at a screenshot of a public records request table. Your job is to:
-            
-            1. **Count all visible requests** in the table
-            2. **Extract each request's details**:
-               - Request number/ID (like "25-370")
-               - Status (Open, Closed, Pending, etc.)
-               - Description (truncated text about the request)
-               - Urgency level based on visual cues (colors, icons)
-               - Describe exactly where to click to open this request
-            
-            Look for:
-            - Blue/clickable links with request numbers
-            - Status indicators (colors, text, icons)
-            - Request descriptions in table cells
-            - Any visual indicators of urgency (red, yellow, alerts)
-            
-            The goal is to give the user a complete list of their available requests
-            so they can choose which one to analyze in detail.
-            
-            Be very specific about what you see and where the clickable elements are located.
-            """
-            
-            # Use structured LLM to extract requests
-            structured_llm = self.llm_helper.llm_client.with_structured_output(RequestTableExtraction)
-            
-            messages = [
-                {"role": "system", "content": extraction_prompt},
-                {
-                    "role": "user", 
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": f"Extract all clickable requests from this table. Page text context:\n\n{page_text[:1000]}"
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"}
-                        }
-                    ]
-                }
+            # Different selector patterns that might be used
+            selector_patterns = [
+                "a[href*='/requests/']",           # Current pattern
+                "a[href*='/request/']",            # Alternative singular
+                "a[href*='requests']",             # Broader pattern
             ]
             
-            result = structured_llm.invoke(messages)
+            for pattern in selector_patterns:
+                try:
+                    links = self.driver.find_elements(By.CSS_SELECTOR, pattern)
+                    all_request_links.extend(links)
+                    logger.info(f"   Found {len(links)} links with pattern: {pattern}")
+                    
+                except Exception as e:
+                    logger.debug(f"Pattern {pattern} failed: {str(e)}")
+                    continue
             
-            logger.info(f"✅ LLM found {result.total_requests_visible} requests")
-            for req in result.clickable_requests:
-                logger.info(f"   📋 {req.request_number} - {req.status} - {req.urgency_level}")
+            # Step 3: Extract and validate request IDs
+            request_ids = []
+            seen_hrefs = set()  # Track to avoid duplicates from multiple selectors
             
-            return result
+            for link in all_request_links:
+                try:
+                    href = link.get_attribute("href")
+                    if not href or href in seen_hrefs:
+                        continue
+                        
+                    seen_hrefs.add(href)
+                    
+                    # Extract ID from href like "/requests/23-8848"
+                    if "/requests/" in href:
+                        request_id = href.split("/requests/")[-1].strip('/')
+                        # Remove any query parameters
+                        request_id = request_id.split('?')[0].split('#')[0]
+                        
+                        # Validate the ID matches expected pattern (XX-XXXX or XX-XXXXX)
+                        if re.match(r'^\d+-\d+$', request_id):
+                            request_ids.append(request_id)
+                        
+                except Exception as e:
+                    logger.debug(f"Failed to process link: {str(e)}")
+                    continue
+            
+            # Step 4: Remove duplicates and sort
+            unique_ids = list(set(request_ids))  
+            
+            # Step 5: Debug logging to understand what we found
+            logger.info(f"📊 Extraction Summary:")
+            logger.info(f"   Total links found: {len(all_request_links)}")
+            logger.info(f"   Unique hrefs: {len(seen_hrefs)}")
+            logger.info(f"   Valid request IDs: {len(unique_ids)}")
+            
+            # Step 6: Log some examples for debugging
+            if len(seen_hrefs) > 0:
+                logger.info(f"   Sample hrefs: {list(seen_hrefs)[:5]}")
+            
+            if len(unique_ids) > 0:
+                logger.info(f"   Sample IDs: {unique_ids[:5]}")
+            
+            # Step 7: Create ClickableRequest objects for compatibility
+            clickable_requests = []
+            for request_id in unique_ids:
+                clickable_requests.append(ClickableRequest(
+                    request_number=request_id,
+                    status="Unknown",  # Will be determined when clicked
+                    description="Click to view details",
+                    urgency_level="Low",  # Default, will be determined when analyzed
+                    clickable_element_description=f"Link for request {request_id}"
+                ))
+            
+            logger.info(f"✅ Found {len(unique_ids)} request IDs")
+            
+            return RequestTableExtraction(
+                total_requests_visible=len(unique_ids),
+                clickable_requests=clickable_requests,
+                extraction_successful=True,
+                table_analysis=f"Direct DOM extraction found {len(unique_ids)} requests using multiple selectors"
+            )
             
         except Exception as e:
-            logger.error(f"LLM extraction failed: {str(e)}")
+            logger.error(f"Direct extraction failed: {str(e)}")
             return RequestTableExtraction(
                 total_requests_visible=0,
                 clickable_requests=[],
                 extraction_successful=False,
                 table_analysis=f"Extraction failed: {str(e)}"
             )
-    
+
+    def _scroll_to_load_all_requests(self):
+        """Scroll down to trigger lazy loading of all requests"""
+        try:
+            logger.info("📜 Scrolling to ensure all requests are loaded...")
+            
+            # Get initial height
+            last_height = self.driver.execute_script("return document.body.scrollHeight")
+            
+            scroll_attempts = 0
+            max_attempts = 10
+            
+            while scroll_attempts < max_attempts:
+                # Scroll to bottom
+                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                
+                # Wait for new content to load
+                time.sleep(5)
+                
+                # Calculate new scroll height
+                new_height = self.driver.execute_script("return document.body.scrollHeight")
+                
+                if new_height == last_height:
+                    # No new content loaded
+                    break
+                    
+                last_height = new_height
+                scroll_attempts += 1
+                logger.info(f"   Scroll attempt {scroll_attempts}: height now {new_height}")
+            
+            # Scroll back to top
+            self.driver.execute_script("window.scrollTo(0, 0);")
+            time.sleep(5)
+            
+            logger.info(f"✅ Scrolling completed after {scroll_attempts} attempts")
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Scrolling failed: {str(e)}")
+
     def click_request_with_llm(self, request_number: str) -> Dict[str, Any]:
         """Use LLM to find and click on a specific request"""
         try:
@@ -931,7 +993,7 @@ class RequestAnalyzer:
                     
                     if action_choice == "1":
                         # Handle message sending
-                        message_result = self._handle_message_sending(request.request_number)
+                        message_result = self._handle_message_sending(request.request_number, analysis)
                         if message_result["success"]:
                             print("✅ Message sent successfully!")
                         else:
@@ -975,7 +1037,7 @@ class RequestAnalyzer:
             logger.error(f"Single request analysis failed: {str(e)}")
             return {"success": False, "error": str(e)}
     
-    def _handle_message_sending(self, request_number: str) -> Dict[str, Any]:
+    def _handle_message_sending(self, request_number: str, analysis=None) -> Dict[str, Any]:
         """Handle the complete message sending workflow with improved terminal input"""
         try:
             print(f"\n📧 Sending message for request {request_number}...")
@@ -1000,8 +1062,12 @@ class RequestAnalyzer:
             print(f"   Subject field: {'Available' if composer_analysis.subject_field_available else 'Not available'}")
             print(f"   Message field: {'Available' if composer_analysis.message_field_available else 'Not available'}")
             
-            # Step 4: Get message content from user with improved interface
-            message_data = self._get_message_input_from_terminal_with_templates(composer_analysis.subject_field_available)
+            # Step 4: Get message content from user with improved interface (now with AI context)
+            message_data = self._get_message_input_from_terminal_with_templates(
+                composer_analysis.subject_field_available, 
+                analysis, 
+                request_number
+            )
             
             if not message_data["success"]:
                 return {"success": False, "error": message_data["error"]}
@@ -1018,6 +1084,7 @@ class RequestAnalyzer:
         except Exception as e:
             logger.error(f"Message sending workflow failed: {str(e)}")
             return {"success": False, "error": str(e)}
+
 
     def _get_message_input_from_terminal(self, has_subject_field: bool) -> Dict[str, Any]:
         """Get message content from user via terminal with improved UX"""
@@ -1216,8 +1283,20 @@ class RequestAnalyzer:
             logger.error(f"Message editing failed: {str(e)}")
             return {"success": False, "error": str(e)}
 
-    def _get_quick_message_templates(self) -> Dict[str, str]:
-        """Provide quick message templates for common requests"""
+    def _get_quick_message_templates(self, analysis=None, request_number=None) -> Dict[str, str]:
+        """Provide quick message templates for common requests - now AI-powered when context available"""
+        
+        # If we have analysis context, generate AI templates
+        if analysis is not None and request_number is not None and self.llm_helper:
+            try:
+                print(f"🤖 Generating contextual templates...")
+                ai_templates = generate_templates(self.llm_helper.llm_client, analysis, request_number)
+                return ai_templates
+            except Exception as e:
+                logger.warning(f"AI template generation failed, using fallback: {e}")
+                # Fall through to original templates
+        
+        # Fallback to original hard-coded templates
         return {
             "1": {
                 "subject": "Request Status Update",
@@ -1237,13 +1316,19 @@ class RequestAnalyzer:
             }
         }
 
-    def _offer_message_templates(self) -> Dict[str, Any]:
+    def _offer_message_templates(self, analysis=None, request_number=None) -> Dict[str, Any]:
         """Offer pre-written message templates to the user"""
         try:
-            templates = self._get_quick_message_templates()
+            templates = self._get_quick_message_templates(analysis, request_number)
             
-            print(f"\n💬 QUICK MESSAGE TEMPLATES:")
-            print(f"   Would you like to use a pre-written template?")
+            # Show different header if AI-generated
+            if analysis is not None and request_number is not None:
+                print(f"\n💬 CONTEXTUAL MESSAGE TEMPLATES:")
+                print(f"   AI-generated templates based on your request analysis:")
+            else:
+                print(f"\n💬 QUICK MESSAGE TEMPLATES:")
+                print(f"   Would you like to use a pre-written template?")
+            
             print(f"")
             for key, template in templates.items():
                 print(f"   {key}. {template['subject']}")
@@ -1255,7 +1340,14 @@ class RequestAnalyzer:
                 
                 if choice in templates:
                     selected = templates[choice]
-                    print(f"\n📋 TEMPLATE PREVIEW:")
+                    
+                    # Show different preview header if AI-generated
+                    if analysis is not None:
+                        print(f"\n📋 AI-GENERATED TEMPLATE PREVIEW:")
+                        print(f"   🎯 Context-aware content based on your request analysis")
+                    else:
+                        print(f"\n📋 TEMPLATE PREVIEW:")
+                    
                     self._preview_message(selected['subject'], selected['message'])
                     
                     while True:
@@ -1288,11 +1380,11 @@ class RequestAnalyzer:
             return {"success": False, "error": str(e)}
 
     # Update the main message input function to include templates
-    def _get_message_input_from_terminal_with_templates(self, has_subject_field: bool) -> Dict[str, Any]:
+    def _get_message_input_from_terminal_with_templates(self, has_subject_field: bool, analysis=None, request_number=None) -> Dict[str, Any]:
         """Enhanced message input with template options"""
         try:
-            # First offer templates
-            template_result = self._offer_message_templates()
+            # First offer templates (now with AI context if available)
+            template_result = self._offer_message_templates(analysis, request_number)
             
             if template_result["success"]:
                 # User selected a template
