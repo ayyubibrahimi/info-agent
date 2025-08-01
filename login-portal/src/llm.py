@@ -7,13 +7,24 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from models import ScreenshotAnalysis
 from langchain_openai import ChatOpenAI
 
+from langchain_openai import AzureChatOpenAI
 
 from dotenv import load_dotenv
 load_dotenv()
 
 
-gpt_4o_mini = ChatOpenAI(model="gpt-4.1-mini",) 
-gpt_4o = ChatOpenAI(model="gpt-4.1-mini") 
+gpt_4o_mini = AzureChatOpenAI(
+    api_version="2024-12-01-preview",
+    azure_deployment="gpt-4.1-mini" 
+)
+
+gpt_4o = AzureChatOpenAI(
+    api_version="2024-12-01-preview",
+    azure_deployment="gpt-4.1"
+)
+
+# gpt_4o_mini = ChatOpenAI(model="gpt-4.1-mini",) 
+# gpt_4o = ChatOpenAI(model="gpt-4.1-mini") 
 
 
 logger = logging.getLogger(__name__)
