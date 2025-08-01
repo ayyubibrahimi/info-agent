@@ -1,18 +1,10 @@
 import logging
 from typing import List, Dict, Any
 from langchain_core.messages import HumanMessage, SystemMessage
-from pydantic import BaseModel, Field
+from models import RequestOptions,RequestOption
 
 logger = logging.getLogger(__name__)
 
-class RequestOption(BaseModel):
-    title: str = Field(description="Brief title for this request")
-    bullet_points: List[str] = Field(description="3-5 bullet points of what to request")
-    context: str = Field(description="Brief context about what this request is seeking")
-
-class RequestOptions(BaseModel):
-    options: List[RequestOption] = Field(description="List of 1-3 request options")
-    recommendation: str = Field(description="Which option is recommended and why")
 
 class SimpleRequestGenerator:
     def __init__(self, llm_client):

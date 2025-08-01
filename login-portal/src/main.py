@@ -1,4 +1,4 @@
-import time
+from llm import gpt_4o
 import logging
 from models import LoginCredentials
 from portal_agent import PortalAgent
@@ -12,10 +12,7 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def main():
-    # Import your LLM client
-    from llm import gpt_4o
-    
+def main():    
     # Portal URL
     portal_url = os.environ.get("PORTAL_URL")
 
@@ -50,7 +47,7 @@ def main():
     print("  ✅ AI-powered request generation")
     print("  ✅ Automated form submission")
     print("  ✅ 🧠 Intelligent request analysis")
-    print("  ✅ 🎯 Interactive request selection (NEW!)")
+    print("  ✅ 🎯 Interactive request selection")
     print("  ✅ Screenshot documentation")
     print("="*80)
     
@@ -108,16 +105,12 @@ def main():
                     print("\n" + "="*80)
                     print("🎯 CHOOSE YOUR ACTION")
                     print("="*80)
-                    print("1. 📝 Submit a new public records request") # works
+                    print("1. 📝 Submit a new public records request")
                     print("2. 🎯 Analyze specific requests")
-                    print("3. 📊 Quick overview of all requests") # works 
-                    print("4. 🧠 Detailed analysis of all requests")  # TODO goes in infinite look
-                    print("5. 🚨 Quick check for urgent requests") # works 
-                    print("6. 📈 Generate comprehensive status report") # works
-                    print("7. 🚪 Exit")
+                    print("3. 🚪 Exit")
                     print("-" * 80)
                     
-                    choice = input("Enter your choice (1-7): ").strip()
+                    choice = input("Enter your choice (1-3): ").strip()
                     
                     if choice == '1':
                         # PHASE 2: Submit new request
@@ -174,101 +167,15 @@ def main():
                             print(f"❌ Interactive analysis error: {str(e)}")
                     
                     elif choice == '3':
-                        # PHASE 3: Quick overview
-                        print("\n📊 PHASE 3: QUICK OVERVIEW OF ALL REQUESTS")
-                        print("-" * 50)
-                        print("Getting a quick overview of all your requests...")
-                        
-                        analysis_result = agent.analyze_existing_requests(detailed_analysis=False)
-                        
-                        if analysis_result['success']:
-                            print("✅ Quick overview completed!")
-                            agent.display_requests_summary(analysis_result)
-                        else:
-                            print(f"❌ Overview failed: {analysis_result['error']}")
-                    
-                    elif choice == '4':
-                        # PHASE 3: Detailed analysis of all requests
-                        print("\n🧠 PHASE 3: DETAILED ANALYSIS OF ALL REQUESTS")
-                        print("-" * 50)
-                        print("This will analyze ALL requests in detail using AI (may take longer)...")
-                        print("Each request will be opened and analyzed for correspondence, status, and actions needed.")
-                        
-                        confirm = input("\nThis may take several minutes. Continue? (y/n): ").strip().lower()
-                        if confirm != 'y':
-                            print("Analysis cancelled.")
-                            continue
-                        
-                        analysis_result = agent.analyze_existing_requests(detailed_analysis=True)
-                        
-                        if analysis_result['success']:
-                            print("✅ Detailed analysis completed!")
-                            agent.display_requests_summary(analysis_result)
-                            print("\n📄 Detailed reports saved to files!")
-                        else:
-                            print(f"❌ Detailed analysis failed: {analysis_result['error']}")
-                    
-                    elif choice == '5':
-                        # Quick urgent check
-                        print("\n🚨 CHECKING FOR URGENT REQUESTS")
-                        print("-" * 50)
-                        print("Scanning for requests that need your immediate attention...")
-                        
-                        urgent_result = agent.get_urgent_requests_summary()
-                        
-                        if urgent_result['success']:
-                            urgent_count = urgent_result.get('urgent_count', 0)
-                            
-                            if urgent_count > 0:
-                                print(f"🔔 Found {urgent_count} requests needing attention:")
-                                print("-" * 60)
-                                for req in urgent_result.get('urgent_requests', []):
-                                    print(f"📋 {req['request_number']}: {req['status']}")
-                                    print(f"🔔 Action: {req['action_needed']}")
-                                    print(f"🎯 Next: {req['next_steps']}")
-                                    print("-" * 40)
-                            else:
-                                print("✅ No urgent requests found - all good!")
-                                print("All your requests are progressing normally.")
-                        else:
-                            print(f"❌ Could not check urgent requests: {urgent_result['error']}")
-                    
-                    elif choice == '6':
-                        # Comprehensive status report
-                        print("\n📈 GENERATING COMPREHENSIVE STATUS REPORT")
-                        print("-" * 50)
-                        print("This will create a detailed report of ALL your requests with AI analysis...")
-                        print("The report will include correspondence summaries, timelines, and recommendations.")
-                        
-                        confirm = input("\nThis comprehensive analysis may take several minutes. Continue? (y/n): ").strip().lower()
-                        if confirm != 'y':
-                            print("Report generation cancelled.")
-                            continue
-                        
-                        analysis_result = agent.analyze_existing_requests(detailed_analysis=True)
-                        
-                        if analysis_result['success']:
-                            print("✅ Comprehensive status report generated successfully!")
-                            agent.display_requests_summary(analysis_result)
-                            
-                            print("\n📁 REPORT FILES GENERATED:")
-                            print("   📊 alameda_requests_analysis_[timestamp].json - Detailed data")
-                            print("   📄 alameda_requests_report_[timestamp].txt - Human-readable report")
-                            print("   📸 Screenshots of all analyzed pages")
-                            print("\n💡 TIP: Check your project directory for these files!")
-                        else:
-                            print(f"❌ Report generation failed: {analysis_result['error']}")
-                    
-                    elif choice == '7':
                         print("👋 Goodbye! Thanks for using the Alameda County Portal Automation System!")
                         break
                     
                     else:
-                        print("❌ Invalid choice. Please enter a number between 1-7.")
+                        print("❌ Invalid choice. Please enter a number between 1-3.")
                         continue
                     
                     # Ask if user wants to continue
-                    if choice != '7':
+                    if choice != '3':
                         print("\n" + "="*60)
                         continue_choice = input("🔄 Return to main menu? (y/n): ").strip().lower()
                         if continue_choice != 'y':
@@ -301,9 +208,7 @@ def main():
         print("\n📁 CHECK GENERATED FILES:")
         print("   📋 alameda_portal_session_[timestamp].json - Session data")
         print("   📄 alameda_portal_summary_[timestamp].txt - Session summary")
-        print("   📊 alameda_requests_analysis_[timestamp].json - Request analysis (if Phase 3 used)")
-        print("   📈 alameda_requests_report_[timestamp].txt - Status report (if Phase 3 used)")
-        print("   🎯 alameda_interactive_analysis_[timestamp].json - Interactive analysis (if used)")
+        print("   🎯 alameda_interactive_analysis_[timestamp].json - Interactive analysis data")
         print("   📸 Screenshots folder - All captured screenshots")
         
         print(f"\n🎉 Session completed successfully! All files saved to your project directory.")

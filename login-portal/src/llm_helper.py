@@ -1,44 +1,10 @@
 import base64
 import logging
 from typing import Dict, Any, List
-from pydantic import BaseModel, Field
 from langchain_core.messages import HumanMessage, SystemMessage
+from models import RequestTableAnalysis, RequestDetailAnalysis, MultiRequestSummary
 
 logger = logging.getLogger(__name__)
-
-class RequestTableAnalysis(BaseModel):
-    """Model for analyzing the requests table page"""
-    total_requests_found: int = Field(description="Number of requests visible in table")
-    request_numbers: List[str] = Field(description="List of request numbers found")
-    requests_with_issues: List[str] = Field(description="Request numbers that appear to need attention")
-    table_structure_understood: bool = Field(description="Whether the table structure was properly identified")
-    navigation_elements: List[str] = Field(description="Available navigation or action elements")
-    quick_insights: List[str] = Field(description="Quick insights about the requests visible")
-
-class RequestDetailAnalysis(BaseModel):
-    """Model for analyzing individual request detail pages"""
-    request_number: str = Field(description="Request number being analyzed")
-    current_status: str = Field(description="Current status in plain language")
-    action_required: bool = Field(description="Whether user action is needed")
-    action_description: str = Field(description="What action is needed if any")
-    timeline_summary: List[str] = Field(description="Key timeline events in chronological order")
-    correspondence_summary: str = Field(description="Summary of all correspondence")
-    documents_available: List[str] = Field(description="Documents ready for download")
-    outstanding_payments: List[str] = Field(description="Any fees or invoices due")
-    staff_contact: str = Field(description="Point of contact information")
-    estimated_completion: str = Field(description="When request might be completed")
-    key_insights: List[str] = Field(description="Important insights user should know")
-    next_steps: str = Field(description="What the user should do next")
-
-class MultiRequestSummary(BaseModel):
-    """Model for summarizing multiple requests"""
-    total_requests: int = Field(description="Total number of requests analyzed")
-    urgent_requests: List[str] = Field(description="Requests needing immediate attention")
-    completed_requests: List[str] = Field(description="Requests that are completed")
-    waiting_requests: List[str] = Field(description="Requests waiting for agency response")
-    overall_status: str = Field(description="Overall status of all requests")
-    recommended_actions: List[str] = Field(description="Recommended actions for the user")
-    summary: str = Field(description="Executive summary of all request activity")
 
 class LLMHelper:
     """LLM helper specifically designed for Phase 3 request analysis"""

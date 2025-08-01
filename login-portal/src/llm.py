@@ -1,6 +1,6 @@
 import base64
 from typing import Dict, Any, List, Optional
-from pydantic import BaseModel, Field
+from models import FormFieldLocation
 
 import logging
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -114,17 +114,6 @@ class LLMAnalyzer:
         ])
         
         return result
-
-
-class FormFieldLocation(BaseModel):
-    """Model for form field identification results"""
-    field_found: bool = Field(description="Whether the target field was found")
-    selector_type: str = Field(description="Best selector type to use (css, xpath, id, name, etc.)")
-    selector_value: str = Field(description="The actual selector string to use")
-    field_description: str = Field(description="Description of what this field is for")
-    confidence: float = Field(description="Confidence level 0.0-1.0")
-    alternative_selectors: List[Dict[str, str]] = Field(default=[], description="Backup selectors if primary fails")
-    context_info: str = Field(description="Additional context about the field location and purpose")
 
 class FormFieldAnalyzer:
     """LLM analyzer specifically for identifying form fields in screenshots"""

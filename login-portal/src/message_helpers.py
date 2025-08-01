@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
+from models import MessageInterfaceAnalysis
+from typing import Dict, Any
 import logging
 import time
 from selenium.webdriver.common.by import By
@@ -11,22 +11,6 @@ from selenium.webdriver.common.keys import Keys
 
 logger = logging.getLogger(__name__)
 
-class MessageInterfaceAnalysis(BaseModel):
-    """Model for LLM analysis of message composition interface"""
-    message_field_found: bool = Field(description="Whether the message text area was found")
-    message_field_selector: str = Field(description="CSS selector or XPath for the message field")
-    message_field_method: str = Field(description="'css_selector', 'xpath', 'id', or 'name'")
-    
-    send_button_found: bool = Field(description="Whether the send button was found")
-    send_button_selector: str = Field(description="CSS selector or XPath for the send button")
-    send_button_method: str = Field(description="'css_selector', 'xpath', 'id', or 'text'")
-    
-    subject_field_found: bool = Field(description="Whether a subject field exists")
-    subject_field_selector: Optional[str] = Field(description="Selector for subject field if it exists", default=None)
-    
-    interface_type: str = Field(description="Type of interface: 'simple', 'rich_text', 'modal', etc.")
-    additional_notes: str = Field(description="Any special notes about the interface")
-    confidence: float = Field(description="Confidence level 0-1 in the analysis")
 
 class MessageHelpers:
     """Class containing message-related helper methods"""

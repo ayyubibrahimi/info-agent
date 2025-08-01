@@ -10,29 +10,11 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from pydantic import BaseModel, Field
+from models import CheckboxSelector, FilterAnalysis
 from langchain_core.messages import HumanMessage, SystemMessage
 
 logger = logging.getLogger(__name__)
 
-class CheckboxSelector(BaseModel):
-    """Model for a single checkbox selector and metadata"""
-    found: bool = Field(description="Whether the checkbox was found in the HTML")
-    selector_type: str = Field(description="Type of selector: 'css' or 'xpath'")
-    selector: str = Field(description="The actual selector string")
-    current_state: bool = Field(description="Current checked state of the checkbox")
-    confidence: float = Field(description="Confidence level 0-1 for this selector")
-    reasoning: str = Field(description="Brief explanation of why this selector was chosen")
-
-class FilterAnalysis(BaseModel):
-    """Enhanced model for LLM analysis of the filter interface"""
-    requester_checkbox: CheckboxSelector = Field(description="Selector info for the Requester checkbox")
-    open_checkbox: CheckboxSelector = Field(description="Selector info for the Open status checkbox")
-    closed_checkbox: CheckboxSelector = Field(description="Selector info for the Closed status checkbox")
-    
-    overall_confidence: float = Field(description="Overall confidence level 0-1 for the analysis")
-    html_structure_notes: str = Field(description="Notes about the HTML structure observed")
-    recommendations: List[str] = Field(description="Step-by-step recommendations for filter setup")
 
 class RequestFilterManager:
     """LLM-guided filter manager that discovers selectors from actual HTML"""

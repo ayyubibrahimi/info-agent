@@ -6,44 +6,14 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import TimeoutException
-from pydantic import BaseModel, Field
 from message_helpers import MessageHelpers
 from request_filter_manager import RequestFilterManager
 import re
 from template_utils import generate_templates
+from models import RequestTableExtraction, ClickableRequest, ClickInstruction, MessageComposerAnalysis
 
 logger = logging.getLogger(__name__)
 
-class ClickableRequest(BaseModel):
-    """Model for a clickable request in the table"""
-    request_number: str = Field(description="The request number/ID")
-    status: str = Field(description="Current status of the request")
-    description: str = Field(description="Brief description of the request")
-    urgency_level: str = Field(description="Low/Medium/High based on visual cues")
-    clickable_element_description: str = Field(description="Description of where to click")
-
-class RequestTableExtraction(BaseModel):
-    """Model for extracting requests from the table"""
-    total_requests_visible: int = Field(description="Number of requests found in table")
-    clickable_requests: List[ClickableRequest] = Field(description="List of all clickable requests")
-    extraction_successful: bool = Field(description="Whether extraction worked properly")
-    table_analysis: str = Field(description="Description of what the LLM sees in the table")
-
-class ClickInstruction(BaseModel):
-    """Model for LLM to provide click instructions"""
-    element_to_click: str = Field(description="CSS selector or description of element to click")
-    click_coordinates: Optional[tuple] = Field(description="X,Y coordinates if needed", default=None)
-    click_method: str = Field(description="'link_text', 'css_selector', 'coordinates'")
-    confidence: float = Field(description="Confidence level 0-1")
-    reasoning: str = Field(description="Why this element should be clicked")
-
-class MessageComposerAnalysis(BaseModel):
-    """Model for analyzing the message composition interface"""
-    message_box_found: bool = Field(description="Whether the message composition interface is visible")
-    subject_field_available: bool = Field(description="Whether there's a subject field")
-    message_field_available: bool = Field(description="Whether there's a message body field")
-    send_button_location: str = Field(description="Description of where the send button is located")
-    interface_description: str = Field(description="Description of the messaging interface")
 
 class RequestAnalyzer:
     """Simplified LLM-driven request analyzer with messaging capability"""

@@ -263,283 +263,6 @@ class PortalAgent:
                 'error': f'Request submission failed: {str(e)}',
                 'user_topic': user_topic
             }
-    
-    def analyze_existing_requests(self, detailed_analysis: bool = True) -> Dict[str, Any]:
-        """
-        PHASE 3: Analyze existing public records requests using LLM intelligence
-        
-        Args:
-            detailed_analysis: If True, analyzes each request individually (slower but comprehensive)
-                              If False, provides overview analysis only (faster)
-        
-        Returns:
-            Dict containing comprehensive analysis of all requests
-        """
-        try:
-            logger.info("🔍 PHASE 3: Starting analysis of existing requests")
-            
-            if not self.is_logged_in:
-                return {
-                    'success': False,
-                    'error': 'Must be logged in to analyze requests',
-                    'phase': 'phase_3_analyze_requests'
-                }
-            
-            # Initialize enhanced request manager with LLM capabilities
-            from request_manager import RequestManager
-            
-            request_manager = RequestManager(
-                driver=self.driver,
-                screenshot_func=self.take_screenshot,
-                llm_client=self.llm_client
-            )
-            
-            if detailed_analysis:
-                # Comprehensive analysis of all requests
-                logger.info("🧠 Running detailed LLM analysis of all requests")
-                analysis_result = request_manager.analyze_all_requests_intelligent()
-            else:
-                # Quick overview analysis
-                logger.info("⚡ Running quick overview analysis")
-                nav_result = request_manager.navigate_to_all_requests()
-                if not nav_result['success']:
-                    return {
-                        'success': False,
-                        'error': nav_result['error'],
-                        'phase': 'phase_3_analyze_requests'
-                    }
-                
-                analysis_result = request_manager.analyze_requests_overview()
-            
-            if not analysis_result['success']:
-                return {
-                    'success': False,
-                    'error': analysis_result.get('error', 'Analysis failed'),
-                    'phase': 'phase_3_analyze_requests'
-                }
-            
-            # Generate status report
-            status_report = None
-            if detailed_analysis:
-                try:
-                    status_report = request_manager.generate_status_report()
-                except Exception as e:
-                    logger.warning(f"Could not generate status report: {str(e)}")
-            
-            # Navigate back to home
-            request_manager.navigate_back_to_home()
-            
-            # Save results
-            self._save_phase3_results(analysis_result, status_report)
-            
-            logger.info("✅ PHASE 3: Request analysis completed successfully")
-            
-            return {
-                'success': True,
-                'phase': 'phase_3_analyze_requests',
-                'analysis_type': analysis_result.get('analysis_type', 'unknown'),
-                'total_requests': analysis_result.get('total_requests_found', 0),
-                'analysis_result': analysis_result,
-                'status_report': status_report,
-                'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
-            }
-            
-        except Exception as e:
-            logger.error(f"PHASE 3 failed: {str(e)}")
-            self.take_screenshot("phase3_error")
-            return {
-                'success': False,
-                'error': str(e),
-                'phase': 'phase_3_analyze_requests'
-            }
-
-    def get_urgent_requests_summary(self) -> Dict[str, Any]:
-        """
-        Quick method to get just the urgent requests that need attention
-        """
-        try:
-            logger.info("🚨 Getting urgent requests summary")
-            
-            if not self.is_logged_in:
-                return {
-                    'success': False,
-                    'error': 'Must be logged in to check requests'
-                }
-            
-            from request_manager import RequestManager
-            
-            request_manager = RequestManager(
-                driver=self.driver,
-                screenshot_func=self.take_screenshot,
-                llm_client=self.llm_client
-            )
-            
-            urgent_result = request_manager.get_urgent_requests()
-            
-            # Navigate back to home
-            request_manager.navigate_back_to_home()
-            
-            return urgent_result
-            
-        except Exception as e:
-            logger.error(f"Failed to get urgent requests: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
-
-    def display_requests_summary(self, analysis_result: Dict[str, Any]):
-        """Display a user-friendly summary of request analysis"""
-        
-        if not analysis_result.get('success'):
-            print(f"❌ Analysis failed: {analysis_result.get('error', 'Unknown error')}")
-            return
-        
-        print("\n" + "=" * 60)
-        print("📊 PUBLIC RECORDS REQUESTS ANALYSIS")
-        print("=" * 60)
-        
-        total = analysis_result.get('total_requests', 0)
-        analysis_type = analysis_result.get('analysis_type', 'unknown')
-        
-        print(f"📈 Total Requests Found: {total}")
-        print(f"🧠 Analysis Type: {analysis_type}")
-        
-        if analysis_result.get('analysis_result'):
-            result = analysis_result['analysis_result']
-            
-            # Show overview insights
-            if result.get('quick_insights'):
-                print(f"\n💡 QUICK INSIGHTS:")
-                for insight in result['quick_insights']:
-                    print(f"  • {insight}")
-            
-            # Show urgent requests
-            urgent_count = 0
-            if result.get('individual_analyses'):
-                urgent_requests = [
-                    a for a in result['individual_analyses'] 
-                    if a.get('action_required', False)
-                ]
-                urgent_count = len(urgent_requests)
-                
-                if urgent_requests:
-                    print(f"\n🚨 URGENT REQUESTS ({urgent_count} need attention):")
-                    for req in urgent_requests:
-                        print(f"  • {req['request_number']}: {req['action_description']}")
-            
-            # Show overall summary from LLM
-            if result.get('overall_summary'):
-                summary = result['overall_summary']
-                print(f"\n📋 AI SUMMARY:")
-                print(f"  {summary.get('summary', 'No summary available')}")
-                
-                if summary.get('recommended_actions'):
-                    print(f"\n✅ RECOMMENDED ACTIONS:")
-                    for i, action in enumerate(summary['recommended_actions'], 1):
-                        print(f"  {i}. {action}")
-        
-        print(f"\n📁 Detailed results saved to files in results directory")
-        print("=" * 60)
-
-    def _save_phase3_results(self, analysis_result: Dict[str, Any], status_report: Optional[Dict[str, Any]] = None):
-        """Save Phase 3 analysis results to files"""
-        try:
-            timestamp = time.strftime('%Y%m%d_%H%M%S')
-            
-            # Save detailed analysis
-            analysis_filename = f"alameda_requests_analysis_{timestamp}.json"
-            analysis_filepath = self.results_dir / analysis_filename
-            
-            with open(analysis_filepath, 'w', encoding='utf-8') as f:
-                json.dump(analysis_result, f, indent=2, default=str)
-            
-            logger.info(f"📁 Saved analysis results to: {analysis_filename}")
-            
-            # Save status report if available
-            if status_report and status_report.get('success'):
-                report_filename = f"alameda_requests_report_{timestamp}.txt"
-                report_filepath = self.results_dir / report_filename
-                
-                with open(report_filepath, 'w', encoding='utf-8') as f:
-                    f.write("ALAMEDA COUNTY PUBLIC RECORDS REQUESTS - STATUS REPORT\n")
-                    f.write("=" * 60 + "\n")
-                    f.write(f"Generated: {status_report['report_timestamp']}\n\n")
-                    
-                    summary = status_report['summary']
-                    f.write(f"SUMMARY:\n")
-                    f.write(f"- Total Requests: {summary['total_requests']}\n")
-                    f.write(f"- Urgent (Action Required): {summary['urgent_requests']}\n")
-                    f.write(f"- Completed: {summary['completed_requests']}\n")
-                    f.write(f"- In Progress: {summary['in_progress_requests']}\n")
-                    f.write(f"- Blocked/Payment Due: {summary['blocked_requests']}\n\n")
-                    
-                    # Urgent requests details
-                    if status_report['categorized_requests']['urgent']:
-                        f.write("URGENT REQUESTS (NEED YOUR ATTENTION):\n")
-                        f.write("-" * 40 + "\n")
-                        for req_num in status_report['categorized_requests']['urgent']:
-                            # Find detailed info
-                            for analysis in status_report['detailed_analyses']:
-                                if analysis['request_number'] == req_num:
-                                    f.write(f"Request {req_num}:\n")
-                                    f.write(f"  Status: {analysis['current_status']}\n")
-                                    f.write(f"  Action: {analysis['action_description']}\n")
-                                    f.write(f"  Next Steps: {analysis['next_steps']}\n\n")
-                                    break
-                    
-                    # Overall summary from LLM
-                    if status_report.get('overall_summary'):
-                        overall = status_report['overall_summary']
-                        f.write("AI ANALYSIS SUMMARY:\n")
-                        f.write("-" * 40 + "\n")
-                        f.write(f"{overall.get('summary', 'No summary available')}\n\n")
-                        
-                        if overall.get('recommended_actions'):
-                            f.write("RECOMMENDED ACTIONS:\n")
-                            for i, action in enumerate(overall['recommended_actions'], 1):
-                                f.write(f"{i}. {action}\n")
-                
-                logger.info(f"📄 Saved status report to: {report_filename}")
-                
-        except Exception as e:
-            logger.warning(f"Could not save Phase 3 results: {str(e)}")
-
-    def _save_request_results(self, result: Dict[str, Any], user_topic: str):
-        """Save request submission results to a file"""
-        try:
-            import datetime
-            import json
-            
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"request_submission_{timestamp}.json"
-            
-            # Convert any non-serializable objects
-            serializable_result = SessionManager.convert_to_dict(result)
-            
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump({
-                    'timestamp': timestamp,
-                    'user_topic': user_topic,
-                    'result': serializable_result,
-                    'portal_url': 'https://alamedacountysheriffca.nextrequest.com/'
-                }, f, indent=2, ensure_ascii=False)
-            
-            logger.info(f"Request results saved to {filename}")
-            
-        except Exception as e:
-            logger.error(f"Failed to save request results: {str(e)}")
-    
-    def get_portal_status(self) -> Dict[str, Any]:
-        """Get current portal status and capabilities"""
-        return {
-            'is_logged_in': self.is_logged_in,
-            'current_url': self.driver.current_url if self.driver else None,
-            'request_functionality_available': self.request_workflow is not None,
-            'total_screenshots': len(self.screenshot_manager.screenshots) if self.screenshot_manager else 0
-        }
-    
-    # Add this method to your PortalAgent class
 
     def analyze_specific_requests(self) -> Dict[str, Any]:
         """
@@ -595,3 +318,37 @@ class PortalAgent:
             
         except Exception as e:
             logger.warning(f"Could not save interactive results: {str(e)}")
+
+    def _save_request_results(self, result: Dict[str, Any], user_topic: str):
+        """Save request submission results to a file"""
+        try:
+            import datetime
+            import json
+            
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"request_submission_{timestamp}.json"
+            
+            # Convert any non-serializable objects
+            serializable_result = SessionManager.convert_to_dict(result)
+            
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump({
+                    'timestamp': timestamp,
+                    'user_topic': user_topic,
+                    'result': serializable_result,
+                    'portal_url': 'https://alamedacountysheriffca.nextrequest.com/'
+                }, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"Request results saved to {filename}")
+            
+        except Exception as e:
+            logger.error(f"Failed to save request results: {str(e)}")
+    
+    def get_portal_status(self) -> Dict[str, Any]:
+        """Get current portal status and capabilities"""
+        return {
+            'is_logged_in': self.is_logged_in,
+            'current_url': self.driver.current_url if self.driver else None,
+            'request_functionality_available': self.request_workflow is not None,
+            'total_screenshots': len(self.screenshot_manager.screenshots) if self.screenshot_manager else 0
+        }
